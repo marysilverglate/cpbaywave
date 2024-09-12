@@ -1,4 +1,4 @@
-#' Detect Change Point
+#' Detect Change Point Faster
 #'
 #' Applies Bayesian-wavelet technique to determine whether a multi-dimensional time series has change point in the mean. Returns the
 #' 3-5 most likely change point locations.
@@ -69,20 +69,17 @@
 
 
 
-detectChangePoint <- function(a, setdetail, useBFIC = TRUE, showplot = FALSE, showall=FALSE, padding = "insertion", slow = FALSE) {
+detectChangePointFast <- function(a, setdetail, useBFIC = TRUE, showplot = FALSE, showall=FALSE, padding = "insertion", slow = FALSE) {
 
   if(is.vector(a)) a <- as.matrix(a,ncol = 1)
   if(ncol(a) > 100) stop("dimension too high. consider JLdetectChangePoint")
 
   if(missing(setdetail)) setdetail <- 0:floor(log2(nrow(a) - 1))
-  if(length(setdetail) < 3) {
-    stop("setedtail must be a vector of length at least 3, e.g. setdetail = 1:5")
-  }
   F <- 10
   n <- nrow(a)
-  oldsetdetail <- setdetail
-  runs <- sapply(3:length(oldsetdetail), function(x) {
-    setdetail <- oldsetdetail[1:x]
+  if(slow || n <= 128) {
+    detectChangePoint(a, setdetail, useBFIC, showplot, showall, padding)
+  } else {
     wid <- ncol(a)
     isDataVector <- FALSE
 
@@ -148,7 +145,8 @@ detectChangePoint <- function(a, setdetail, useBFIC = TRUE, showplot = FALSE, sh
     # Compute details of discrete wavelet transform of data by column and store desired details in DWTmat TODO: write
     # wrapper for accessD that pulls out multiple levels and returns a vector of details unlist(sapply(...)) pulls out
     # the desired levels of detail coefficients and combines them in a vector
-    DWTmat <- apply(data, 2, function(x) unlist(sapply(J - setdetail - 1, function(y) accessD(wd(x,filter.number = F, family = "DaubExPhase"), y))))
+    DWTmat <- apply(data, 2, function(x) unlist(sapply(J - setdetail - 1, function(y) accessD(wd(x,
+                                                                                                 filter.number = F, family = "DaubExPhase"), y))))
 
     # Creating idealized data set and its discrete wavelet transform Have 0's followed by 1's with change point in each
     # possible position
@@ -192,28 +190,6 @@ detectChangePoint <- function(a, setdetail, useBFIC = TRUE, showplot = FALSE, sh
       probvec <- probvec[order(id) <= n]
       data <- a
     }
-
-    list(M1, M2, pad1, probvec, wid, m, n, data, indices, value)
-  } )
-
-  winner <- which.max(sapply(1:(length(oldsetdetail) - 2), function(x) {
-    runs[10,x][[1]]
-  }))
-
-  runs <- runs[,winner]
-  M1 <- runs[[1]]
-  M2 <- runs[[2]]
-  pad1 <- runs[[3]]
-  probvec <- runs[[4]]
-  wid <- runs[[5]]
-  m <- runs[[6]]
-  n <- runs[[7]]
-  data <- runs[[8]]
-  indices <- runs[[9]]
-  value <- runs[[10]]
-
-  {
-
 
 
     if (showplot) {
